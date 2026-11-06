@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -27,8 +28,10 @@ namespace LiveCaptionsTranslator.models
         public IEnumerable<TranslationHistoryEntry> AwareContexts => GetPreviousContexts(Translator.Setting.NumContexts);
         public string AwareContextsCaption => GetPreviousText(Translator.Setting.NumContexts, TextType.Caption);
 
-        public IEnumerable<TranslationHistoryEntry> DisplayLogCards =>
-            GetPreviousContexts(Translator.Setting.DisplaySentences).Reverse();
+        // Finished sentences of this session for the main window, oldest first.
+        // shortcut: capped at MAX_LOG_ENTRIES to bound memory, raise it if people want longer scrollback.
+        public const int MAX_LOG_ENTRIES = 200;
+        public ObservableCollection<TranslationHistoryEntry> LogEntries { get; } = new();
 
         public string DisplayOriginalCaption
         {
@@ -131,10 +134,14 @@ namespace LiveCaptionsTranslator.models
 
             return Contexts
                 .Reverse().Take(count).Reverse()
-                .Where(entry => entry != null && string.CompareOrdinal(entry.TranslatedText, "N/A") != 0 &&
-                                !entry.TranslatedText.Contains("[ERROR]") &&
-                                !entry.TranslatedText.Contains("[WARNING]"));
+                .Where(IsDisplayable);
         }
+
+        // Skips log-only entries and failed translations.
+        public static bool IsDisplayable(TranslationHistoryEntry? entry) =>
+            entry != null && string.CompareOrdinal(entry.TranslatedText, "N/A") != 0 &&
+            !entry.TranslatedText.Contains("[ERROR]") &&
+            !entry.TranslatedText.Contains("[WARNING]");
 
         public void OnPropertyChanged([CallerMemberName] string propName = "")
         {

@@ -91,7 +91,6 @@ namespace LiveCaptionsTranslator
         {
             if (Translator.Setting.DisplaySentences > Translator.Setting.NumContexts)
                 Translator.Setting.NumContexts = Translator.Setting.DisplaySentences;
-            Translator.Caption.OnPropertyChanged("DisplayLogCards");
             Translator.Caption.OnPropertyChanged("OverlayPreviousTranslation");
         }
 

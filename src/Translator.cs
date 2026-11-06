@@ -330,15 +330,41 @@ namespace LiveCaptionsTranslator
                 Caption.Contexts.Dequeue();
             Caption?.Contexts.Enqueue(lastLog);
 
-            Caption?.OnPropertyChanged("DisplayLogCards");
+            if (Caption != null && Caption.IsDisplayable(lastLog))
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    // The first sentence of a run is often the last one of the previous run, already loaded.
+                    if (Caption.LogEntries.Any(e =>
+                            e.TimestampFull == lastLog.TimestampFull && e.SourceText == lastLog.SourceText))
+                        return;
+                    if (Caption.LogEntries.Count >= Caption.MAX_LOG_ENTRIES)
+                        Caption.LogEntries.RemoveAt(0);
+                    Caption.LogEntries.Add(lastLog);
+                });
             Caption?.OnPropertyChanged("OverlayPreviousTranslation");
+        }
+
+        // Fills the main window with the most recent sentences from earlier runs. Call on the UI thread.
+        public static async Task LoadPreviousLog()
+        {
+            try
+            {
+                var (history, _) = await SQLiteHistoryLogger.LoadHistoryAsync(1, Caption.MAX_LOG_ENTRIES, string.Empty);
+                // `history` is newest first; inserting each at 0 gives oldest first, ahead of anything added meanwhile.
+                foreach (var entry in history.Where(Caption.IsDisplayable))
+                    Caption?.LogEntries.Insert(0, entry);
+            }
+            catch (Exception ex)
+            {
+                SnackbarHost.Show("[ERROR] Loading history failed.", ex.Message, SnackbarType.Error,
+                    timeout: 2, closeButton: true);
+            }
         }
 
         public static void ClearContexts()
         {
             Caption?.Contexts.Clear();
 
-            Caption?.OnPropertyChanged("DisplayLogCards");
             Caption?.OnPropertyChanged("OverlayPreviousTranslation");
         }
 

@@ -6,118 +6,95 @@
     xmlns:local="clr-namespace:LiveCaptionsTranslator"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:utils="clr-namespace:LiveCaptionsTranslator.utils"
     Title="CaptionPage"
     JournalEntry.KeepAlive="True"
+    ScrollViewer.CanContentScroll="False"
     mc:Ignorable="d">
+    <!--  CanContentScroll=False stops NavigationView from wrapping the page in its own ScrollViewer, which gave CaptionScroll infinite height.  -->
 
-    <Grid Margin="5,5,15,5">
-        <Grid.RowDefinitions>
-            <RowDefinition x:Name="OriginalCaption_Row" Height="Auto" />
-            <RowDefinition x:Name="TranslatedCaption_Row" Height="Auto" />
-            <RowDefinition x:Name="CaptionLogCard_Row" Height="Auto" />
-        </Grid.RowDefinitions>
-        <Grid.Resources>
-            <Style x:Key="CaptionBlockStyle" TargetType="TextBlock">
-                <Setter Property="TextWrapping" Value="Wrap" />
-                <Setter Property="VerticalAlignment" Value="Stretch" />
-            </Style>
-        </Grid.Resources>
+    <Page.Resources>
+        <!--  No BasedOn: the WPF-UI input styles add borders, padding and a focus underline that a caption does not want.  -->
+        <Style x:Key="OriginalTextStyle" TargetType="RichTextBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="FontSize" Value="{DynamicResource OriginalFontSize}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="ToolTip" Value="Ctrl+Scroll to Resize Font" />
+        </Style>
+        <Style x:Key="TranslatedTextStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="FontSize" Value="{DynamicResource TranslatedFontSize}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="ToolTip" Value="Ctrl+Scroll to Resize Font" />
+        </Style>
+    </Page.Resources>
 
-        <ui:Card
-            Grid.Row="0"
-            Padding="8"
-            VerticalAlignment="Stretch"
-            PreviewMouseWheel="OriginalCard_PreviewMouseWheel">
-            <TextBlock
-                x:Name="OriginalCaption"
-                Background="Transparent"
-                Cursor="Hand"
-                FontSize="15"
-                MouseLeftButtonDown="TextBlock_MouseLeftButtonDown"
-                Style="{StaticResource CaptionBlockStyle}"
-                Text="{Binding DisplayOriginalCaption, UpdateSourceTrigger=PropertyChanged}"
-                ToolTip="Click to Copy, Ctrl+Scroll to Resize Font" />
-        </ui:Card>
-
-        <ui:Card
-            Grid.Row="1"
-            MinHeight="43"
-            Margin="0,3,0,0"
-            Padding="8"
-            VerticalAlignment="Stretch"
-            PreviewMouseWheel="TranslatedCard_PreviewMouseWheel">
-            <TextBlock
-                x:Name="TranslatedCaption"
-                Background="Transparent"
-                Cursor="Hand"
-                FontSize="18"
-                MouseLeftButtonDown="TextBlock_MouseLeftButtonDown"
-                Style="{StaticResource CaptionBlockStyle}"
-                Text="{Binding DisplayTranslatedCaption, UpdateSourceTrigger=PropertyChanged}"
-                ToolTip="Click to Copy, Ctrl+Scroll to Resize Font" />
-        </ui:Card>
-
-        <ui:Card
-            x:Name="LogCards"
-            Grid.Row="2"
-            Margin="0,0,0,5"
-            Padding="8"
-            VerticalAlignment="Top"
-            Background="Transparent"
-            BorderBrush="#00000000">
-            <ItemsControl
-                x:Name="LogCardItems"
-                MinHeight="50"
-                ItemsSource="{Binding DisplayLogCards, UpdateSourceTrigger=PropertyChanged}"
-                VirtualizingPanel.IsVirtualizing="True">
+    <!--  Finished sentences oldest first, the sentence being spoken last; follows the newest while scrolled to the bottom.  -->
+    <ScrollViewer
+        x:Name="CaptionScroll"
+        Margin="5,5,5,5"
+        Padding="8,4,12,4"
+        ScrollChanged="CaptionScroll_ScrollChanged"
+        VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+            <ItemsControl x:Name="LogCards" ItemsSource="{Binding LogEntries}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border
-                            Margin="0,0,0,5"
-                            Padding="10,5,10,5"
-                            BorderBrush="#20000000"
-                            BorderThickness="0,1,0,0">
-                            <Grid Grid.Row="0">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="*" />
-                                </Grid.RowDefinitions>
-
-                                <ui:Card
-                                    Grid.Row="0"
-                                    Padding="8"
-                                    VerticalAlignment="Stretch">
-                                    <TextBlock
-                                        x:Name="OriginalCaptionLog"
-                                        Background="Transparent"
-                                        Cursor="Hand"
-                                        FontSize="12"
-                                        MouseLeftButtonDown="TextBlock_MouseLeftButtonDown"
-                                        Style="{StaticResource CaptionBlockStyle}"
-                                        Text="{Binding SourceText}"
-                                        ToolTip="Click To Copy" />
-                                </ui:Card>
-                                <ui:Card
-                                    Grid.Row="1"
-                                    Margin="0,3,0,0"
-                                    Padding="8"
-                                    VerticalAlignment="Stretch">
-                                    <TextBlock
-                                        x:Name="TranslatedCaptionLog"
-                                        Background="Transparent"
-                                        Cursor="Hand"
-                                        FontSize="16"
-                                        MouseLeftButtonDown="TextBlock_MouseLeftButtonDown"
-                                        Style="{StaticResource CaptionBlockStyle}"
-                                        Text="{Binding TranslatedText}"
-                                        ToolTip="Click To Copy" />
-                                </ui:Card>
-                            </Grid>
-                        </Border>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <RichTextBox
+                                Grid.Column="0"
+                                PreviewMouseWheel="OriginalCard_PreviewMouseWheel"
+                                Style="{StaticResource OriginalTextStyle}"
+                                utils:Furigana.Text="{Binding SourceText, Mode=OneWay}" />
+                            <Border
+                                Grid.Column="1"
+                                Width="1"
+                                Margin="12,0"
+                                Background="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                            <TextBox
+                                Grid.Column="2"
+                                PreviewMouseWheel="TranslatedCard_PreviewMouseWheel"
+                                Style="{StaticResource TranslatedTextStyle}"
+                                Text="{Binding TranslatedText, Mode=OneWay}" />
+                        </Grid>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-        </ui:Card>
 
-    </Grid>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <RichTextBox
+                    Grid.Column="0"
+                    PreviewMouseWheel="OriginalCard_PreviewMouseWheel"
+                    Style="{StaticResource OriginalTextStyle}"
+                    utils:Furigana.Text="{Binding DisplayOriginalCaption, Mode=OneWay}" />
+                <Border
+                    Grid.Column="1"
+                    Width="1"
+                    Margin="12,0"
+                    Background="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                <TextBox
+                    Grid.Column="2"
+                    PreviewMouseWheel="TranslatedCard_PreviewMouseWheel"
+                    Style="{StaticResource TranslatedTextStyle}"
+                    Text="{Binding DisplayTranslatedCaption, Mode=OneWay}" />
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
 </Page>

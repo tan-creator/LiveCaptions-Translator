@@ -9,7 +9,7 @@ namespace LiveCaptionsTranslator.models
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private bool topmost = true;
-        private bool captionLogEnabled = false;
+        private bool captionLogEnabled = true;
         private bool latencyShow = false;
         private int originalFontSize = 15;
         private int translatedFontSize = 18;

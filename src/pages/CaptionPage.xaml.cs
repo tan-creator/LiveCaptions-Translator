@@ -22,6 +22,7 @@ namespace LiveCaptionsTranslator
             Loaded += (s, e) =>
             {
                 AutoHeight();
+                CaptionScroll.ScrollToEnd();
                 (App.Current.MainWindow as MainWindow).CaptionLogButton.Visibility = Visibility.Visible;
             };
             Unloaded += (s, e) =>
@@ -31,35 +32,24 @@ namespace LiveCaptionsTranslator
 
             CollapseTranslatedCaption(Translator.Setting.MainWindow.CaptionLogEnabled);
             ApplyFontSizes();
-        }
-
-        private async void TextBlock_MouseLeftButtonDown(object sender, RoutedEventArgs e)
-        {
-            if (sender is TextBlock textBlock)
-            {
-                try
-                {
-                    Clipboard.SetText(textBlock.Text);
-                    SnackbarHost.Show("Copied.", textBlock.Text, SnackbarType.Info, 100);
-                }
-                catch
-                {
-                    SnackbarHost.Show("Copy Failed.", string.Empty, SnackbarType.Error, 100);
-                }
-                await Task.Delay(500);
-            }
+            if (Translator.Caption.LogEntries.Count == 0)
+                _ = Translator.LoadPreviousLog();
         }
 
         private void ApplyFontSizes()
         {
-            OriginalCaption.FontSize = Translator.Setting.MainWindow.OriginalFontSize;
-            TranslatedCaption.FontSize = Translator.Setting.MainWindow.TranslatedFontSize;
+            // Resources, so the log rows and the current row resize together.
+            Resources["OriginalFontSize"] = (double)Translator.Setting.MainWindow.OriginalFontSize;
+            Resources["TranslatedFontSize"] = (double)Translator.Setting.MainWindow.TranslatedFontSize;
         }
 
         private void OriginalCard_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
             if (Keyboard.Modifiers != ModifierKeys.Control)
+            {
+                ForwardWheel(e);
                 return;
+            }
             Translator.Setting.MainWindow.OriginalFontSize =
                 AdjustFontSize(Translator.Setting.MainWindow.OriginalFontSize, e.Delta);
             ApplyFontSizes();
@@ -69,7 +59,10 @@ namespace LiveCaptionsTranslator
         private void TranslatedCard_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
             if (Keyboard.Modifiers != ModifierKeys.Control)
+            {
+                ForwardWheel(e);
                 return;
+            }
             Translator.Setting.MainWindow.TranslatedFontSize =
                 AdjustFontSize(Translator.Setting.MainWindow.TranslatedFontSize, e.Delta);
             ApplyFontSizes();
@@ -84,18 +77,25 @@ namespace LiveCaptionsTranslator
 
         public void CollapseTranslatedCaption(bool isCollapsed)
         {
-            var converter = new GridLengthConverter();
+            LogCards.Visibility = isCollapsed ? Visibility.Visible : Visibility.Collapsed;
+        }
 
-            if (isCollapsed)
-            {
-                TranslatedCaption_Row.Height = (GridLength)converter.ConvertFromString("Auto");
-                LogCards.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                TranslatedCaption_Row.Height = (GridLength)converter.ConvertFromString("*");
-                LogCards.Visibility = Visibility.Collapsed;
-            }
+        // TextBox and RichTextBox swallow the wheel even when they have nothing to scroll.
+        private void ForwardWheel(MouseWheelEventArgs e)
+        {
+            CaptionScroll.ScrollToVerticalOffset(CaptionScroll.VerticalOffset - e.Delta);
+            e.Handled = true;
+        }
+
+        // Follow the newest sentence while the view is at the bottom; leave it alone while the user reads older ones.
+        private bool followNewest = true;
+
+        private void CaptionScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (e.ExtentHeightChange == 0 && e.ViewportHeightChange == 0)
+                followNewest = CaptionScroll.VerticalOffset >= CaptionScroll.ScrollableHeight - 1;
+            else if (followNewest)
+                CaptionScroll.ScrollToEnd();
         }
 
         public void AutoHeight()
